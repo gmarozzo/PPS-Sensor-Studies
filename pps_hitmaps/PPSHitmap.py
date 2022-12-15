@@ -1,5 +1,4 @@
-
-
+from __future__ import annotations
 
 class PPSHitmap:
     def __init__(self,

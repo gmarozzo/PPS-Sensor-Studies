@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from ClassFields import *
 
 def cleanEdges(edgeList, threshold=0.000001):
