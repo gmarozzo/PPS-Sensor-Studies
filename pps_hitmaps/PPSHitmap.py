@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 class PPSHitmap:
+    map: dict
+    maxFluence: dict
     def __init__(self,
                  filename,
                  station,
@@ -43,7 +45,7 @@ class PPSHitmap:
 
         self.df = None
 
-        self.map = None
+        self.map = {}
 
         self.validated = False
 
@@ -62,7 +64,7 @@ class PPSHitmap:
             print("From {} to {} every {}: Range of {} in {} steps (x-axis)".format(self.xMin, self.xMax, self.xStep, self.xMax - self.xMin, ((self.xMax - self.xMin)/self.xStep)))
             print("From {} to {} every {}: Range of {} in {} steps (y-axis)".format(self.yMin, self.yMax, self.yStep, self.yMax - self.yMin, ((self.yMax - self.yMin)/self.yStep)))
         edgeIdx = int((self.detectorEdge - self.xMin)/self.xStep)
-        self.maxFluence = None
+        self.maxFluence = {}
         self.ridge = {}
         for xIdx in range(int((self.xMax - self.xMin)/self.xStep)):
             xVal = round(self.xMin + xIdx*self.xStep, 6)
@@ -142,12 +144,9 @@ class PPSHitmap:
         self.map = {}
         with open(self.filename) as file:
             for line in file:
-                pLine = line.rstrip().split(' ') # parsed line
-
                 # Units are in m and fix type
-                pLine[0] = float(pLine[0])
-                pLine[1] = float(pLine[1])
-                pLine[2] = float(pLine[2])
+                pLine = [float(x) for x in line.rstrip().split(' ')]
+
                 if pLine[0] not in self.map:
                     self.map[pLine[0]] = {}
 
@@ -157,12 +156,14 @@ class PPSHitmap:
 
     def _freeMap(self):
         if self.map is not None:
-            self.map = None
+            self.map = {}
 
     def getHisto(self, name, title):
         self._checkMap()
-        from ROOT import TH2D
-        from ROOT import kFALSE
+
+        from ROOT import TH2D  # type: ignore
+        from ROOT import kFALSE  # type: ignore
+        import ROOT
 
         binX = int((self.xMax - self.xMin)/self.xStep) + 1
         xMin = self.xMin - self.xStep/2
@@ -260,12 +261,12 @@ class PPSHitmap:
             raise ValueError("There was a problem, unable to find the maximum of the map within the detector window")
 
 
-        from ROOT import TCanvas
-        from ROOT import TH1D
-        from ROOT import TLine
-        from ROOT import TGraph
-        from ROOT import TLegend
-        from ROOT import kRed, kAzure
+        from ROOT import TCanvas  # type: ignore
+        from ROOT import TH1D  # type: ignore
+        from ROOT import TLine  # type: ignore
+        from ROOT import TGraph  # type: ignore
+        from ROOT import TLegend  # type: ignore
+        from ROOT import kRed, kAzure  # type: ignore
         from array import array
 
         persistance = {}
@@ -384,11 +385,17 @@ class PPSHitmap:
             if thresholdFlux is not None and thresholdFlux > maxFlux:
                 maxFlux = thresholdFlux * 1.05
             else:
-                maxFlux *= 1.1
+                if maxFlux is not None:
+                    maxFlux *= 1.1
+                else:
+                    maxFlux = 1e15
             if thresholdFlux is not None and thresholdFlux < minFlux:
                 minFlux = thresholdFlux * 0.95
             else:
-                minFlux *= 0.9
+                if minFlux is not None:
+                    minFlux *= 0.9
+                else:
+                    minFlux = 1e10
 
             if maxFlux/minFlux < 10:
                 minFlux = maxFlux/10
@@ -401,9 +408,9 @@ class PPSHitmap:
 
     def squarePadPeakUniformScan(self, bins, minPad, maxPad, doLog = False):
         if bins <= 1:
-            return None
+            return (None, None)
         if doLog and minPad == 0:
-            return None
+            return (None, None)
 
         from math import log
         padSize = []
@@ -424,9 +431,9 @@ class PPSHitmap:
 
     def squarePadIntegrateScan(self, bins, minPad, maxPad, doLog = False):
         if bins <= 1:
-            return None
+            return (None, None)
         if doLog and minPad == 0:
-            return None
+            return (None, None)
 
         from math import log
         padSize = []
@@ -446,14 +453,17 @@ class PPSHitmap:
         return (padSize,occupancy)
 
     def squarePadPeakUniformGraph(self, bins, minPad, maxPad, padScale = 1, doLog = False):
-        from ROOT import TGraph
+        from ROOT import TGraph  # type: ignore
 
         from array import array
         (padSize, occupancy) = self.squarePadPeakUniformScan(bins, minPad, maxPad, doLog = doLog)
+        if padSize is None or occupancy is None:
+            return None
         for ibin in range(len(padSize)):
             padSize[ibin] = padSize[ibin] * padScale
 
         x, y = array( 'd' ), array( 'd' )
+        graph = None
         for ibin in range(len(padSize)):
             x.append(padSize[ibin])
             if occupancy[ibin] is not None:
@@ -466,13 +476,16 @@ class PPSHitmap:
         return graph
 
     def squarePadIntegrateGraph(self, bins, minPad, maxPad, padScale = 1, doLog = False):
-        from ROOT import TGraph
+        from ROOT import TGraph  # type: ignore
         from array import array
 
         (padSize, occupancy) = self.squarePadIntegrateScan(bins, minPad, maxPad, doLog = doLog)
+        if padSize is None or occupancy is None:
+            return None
         padSize = [pad*padScale for pad in padSize]
 
         x, y = array( 'd' ), array( 'd' )
+        graph = None
         for ibin in range(len(padSize)):
             x.append(padSize[ibin])
             if occupancy[ibin] is not None:
