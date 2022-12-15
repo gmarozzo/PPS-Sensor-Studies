@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ClassFields import *
+from .ClassFields import *
 
 def cleanEdges(edgeList, threshold=0.000001):
     newEdges = []
@@ -234,9 +234,9 @@ class SensorPad:
             padX = 3
             padY = ceil(numTPads/3.)
 
-        from ROOT import TCanvas, TH2D
-        from ROOT import TLine
-        from ROOT import kRed, kBlue
+        from ROOT import TCanvas, TH2D  # type: ignore
+        from ROOT import TLine  # type: ignore
+        from ROOT import kRed, kBlue  # type: ignore
         from array import array
 
         persistance = {}
@@ -391,9 +391,9 @@ class SensorPad:
 
         # self.epochs for the number of epochs
 
-        from ROOT import TCanvas, TH1D
-        from ROOT import TLine
-        from ROOT import kRed, kBlue
+        from ROOT import TCanvas, TH1D  # type: ignore
+        from ROOT import TLine  # type: ignore
+        from ROOT import kRed, kBlue  # type: ignore
 
         epochLumi = float(integratedLuminosity)/self.epochs
         epochTime = float(maxTime)/self.epochs
@@ -435,7 +435,6 @@ class SensorPad:
 
         return (canv, persistance)
 
-
     def plotDoseEOL(self, integratedLuminosity=300, usePadSpacing = True):
         """
         maxTime in days
@@ -445,9 +444,9 @@ class SensorPad:
         if not usePadSpacing:
             doses = self.doses_extra
 
-        from ROOT import TCanvas, TH2D
-        from ROOT import TLine
-        from ROOT import kRed, kBlue
+        from ROOT import TCanvas, TH2D  # type: ignore
+        from ROOT import TLine  # type: ignore
+        from ROOT import kRed, kBlue  # type: ignore
         from array import array
 
         epochLumi = float(integratedLuminosity)/self.epochs
