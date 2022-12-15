@@ -6,4 +6,9 @@ from .Sensor import Sensor
 from .Sensor import calcLossProb
 from .CustomizedSensors import *
 
-__all__ = (["PPSHitmap", "SensorPad", "Sensor", "calcLossProb"] + listOfSensors)
+__all__ = [
+    "PPSHitmap",
+    "SensorPad",
+    "Sensor",
+    "calcLossProb",
+]
