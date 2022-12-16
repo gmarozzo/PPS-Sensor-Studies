@@ -43,8 +43,6 @@ class PPSHitmap:
         if self.physics and self.calib:
             raise Exception("File {} has both physics and calibration set to true".format(self.filename))
 
-        self.df = None
-
         self.map = {}
 
         self.validated = False
@@ -75,7 +73,7 @@ class PPSHitmap:
                     raise Exception("Did not find a fluence entry for {} for x={}, y={}".format(self.filename, xVal, yVal))
 
                 if xIdx >= edgeIdx:
-                    if (self.maxFluence is None) or (self.map[xVal][yVal] > self.maxFluence["fluence"]):
+                    if ("x" not in self.maxFluence) or (self.map[xVal][yVal] > self.maxFluence["fluence"]):
                         self.maxFluence = {
                             "x": xVal,
                             "y": yVal,
@@ -94,20 +92,21 @@ class PPSHitmap:
         self.validated = True
         #self._freeMap()
 
-        if self.verbose and self.maxFluence is not None:
+        if self.verbose and "x" in self.maxFluence:
             print("Max fluence at x={}, y={}, fluence={}".format(self.maxFluence["x"], self.maxFluence["y"], self.maxFluence["fluence"]))
             print("Pad edge at x={}".format(edgeIdx * self.xStep + self.xMin))
 
     def _checkValid(self):
+        self._checkMap()
         if not self.validated:
             print("The file {} has not yet been validated to contain all points, it will be validated now and may take some time, if the file has been previously validated, you can remove this check by setting the validated property to True".format(self.filename))
             self.validate()
 
             if not self.validated:
-                raise Exception("There was a problem validatind the file {}".format(self.filename))
+                raise Exception("There was a problem validating the file {}".format(self.filename))
 
     def _checkMap(self):
-        if self.map is None:
+        if len(self.map) == 0:
             self._loadMap()
 
     def _loadMap(self):
@@ -125,15 +124,14 @@ class PPSHitmap:
                     self.map[pLine[0]][pLine[1]] += self.addBackgroundFlux
 
     def _freeMap(self):
-        if self.map is not None:
+        if len(self.map) != 0:
             self.map = {}
 
     def getHisto(self, name, title):
-        self._checkMap()
+        self._checkValid()
 
         from ROOT import TH2D  # type: ignore
         from ROOT import kFALSE  # type: ignore
-        import ROOT
 
         binX = int((self.xMax - self.xMin)/self.xStep) + 1
         xMin = self.xMin - self.xStep/2
@@ -141,6 +139,7 @@ class PPSHitmap:
         binY = int((self.yMax - self.yMin)/self.yStep) + 1
         yMin = self.yMin - self.yStep/2
         yMax = self.yMax + self.yStep/2
+
         hist = TH2D(name, title, binX, xMin*1000, xMax*1000, binY, yMin*1000, yMax*1000) # *1000 for units in mm
         hist.SetStats(kFALSE)
         hist.GetXaxis().SetTitle( "x [mm]" )
@@ -165,6 +164,7 @@ class PPSHitmap:
 
     def peakUniformPadOccupancy(self, xLen, yLen):
         """xLen and yLen in m"""
+        self._checkValid()
 
         # Convert Phi 1fb-1 to Phi BX - multiply by 1.6 x 10^-12 Phi in units of particles/cm^2 Occupancy in units
         # of particles
@@ -175,14 +175,15 @@ class PPSHitmap:
 
     def integratePadOccupancy(self, xLen, yLen):
         """xLen and yLen in m"""
-        self._checkMap()
+        self._checkValid()
+
         from math import ceil, floor
 
         # Convert Phi 1fb-1 to Phi BX - multiply by 1.6 x 10^-12 Phi in units of particles/cm^2 Occupancy in units
         # of particles
 
         xBins = ceil(xLen/self.xStep)
-        yBins = ceil(yLen/self.yStep * 0.5 - 0.5) * 2 + 1
+        yBins = ceil(yLen/self.yStep * 0.5 - 0.5) * 2 + 1  # The pad is centered on the bin of max fluence, so we need to adjust things around
         minY = self.maxFluence["yIdx"] - floor(yBins/2)
         maxY = self.maxFluence["yIdx"] + floor(yBins/2)
 
@@ -204,6 +205,8 @@ class PPSHitmap:
                 contributionX = 1
                 if right > rightPad:
                     contributionX -= (right - rightPad)/self.xStep
+                if left < leftPad:
+                    contributionX -= (left - leftPad)/self.xStep
 
                 contributionY = 1
                 if top > topPad:
@@ -215,12 +218,8 @@ class PPSHitmap:
         occupancy = fluence * 1.6E-12 * (self.xStep * self.yStep) * 1.0E4
         return occupancy
 
-    def plotShifts(self, integratedLuminosity=300, padLength = 1.3, numCols = 2, maxNumShifts=4, thresholdFlux = None, baseColor = None, colorOffset=3, drawOneSided=False):
-        self._checkMap()
+    def plotShifts(self, integratedLuminosity=300, padLength = 1.3, plotPadCols = 2, maxCols = 3, maxNumShifts=4, thresholdFlux = None, baseColor = None, colorOffset=3, drawOneSided=False):
         self._checkValid()
-        #print(self.maxFluence)
-        #print(self.ridge)
-        #print("Done!")
 
         firstIdx = None
         for idx in range(len(self.ridge)):
@@ -230,7 +229,6 @@ class PPSHitmap:
         if firstIdx is None:
             raise ValueError("There was a problem, unable to find the maximum of the map within the detector window")
 
-
         from ROOT import TCanvas  # type: ignore
         from ROOT import TH1D  # type: ignore
         from ROOT import TLine  # type: ignore
@@ -238,10 +236,14 @@ class PPSHitmap:
         from ROOT import TLegend  # type: ignore
         from ROOT import kRed, kAzure  # type: ignore
         from array import array
+        from math import ceil
+
+        padCols = plotPadCols%maxCols
+        padRows = ceil(plotPadCols/float(maxCols))
 
         persistance = {}
-        canv = TCanvas("sensor_shifts", "Sensor Shifts", numCols*600, 600)
-        canv.Divide(numCols, 1)
+        canv = TCanvas("sensor_shifts", "Sensor Shifts", padCols*600, padRows*600)
+        canv.Divide(padCols, padRows)
 
         if thresholdFlux is not None:
             persistance["ThresholdLine"] = TLine(0, thresholdFlux, 10, thresholdFlux)
@@ -249,13 +251,13 @@ class PPSHitmap:
             persistance["ThresholdLine"].SetLineStyle(2)
 
         idx = 0
-        for col in range(numCols):
+        for col in range(plotPadCols):
             idx += 1
             pad = canv.cd(idx)
             pad.SetLogy()
             pad.SetTicks()
 
-            hist = TH1D("shifts_col_{}".format(col), "Column {} Shifts at {} {}".format(col, integratedLuminosity, "fb^{-1}"), 2, 0, 10)
+            hist = TH1D("shifts_pad_col_{}".format(col), "Pad Column {} Shifts at {} {}".format(col, integratedLuminosity, "fb^{-1}"), 2, 0, 10)
 
             hist.SetStats(False)
             hist.GetXaxis().SetTitle( "#Delta y [mm]" )
@@ -273,7 +275,7 @@ class PPSHitmap:
             xIdx = self.ridge[firstIdx+int(col*(padLength)/(self.xStep*1000))]['xIdx']
             yIdx = self.ridge[firstIdx+int(col*(padLength)/(self.xStep*1000))]['yIdx']
 
-            persistance["col_{}_legend".format(col)] = TLegend(0.75,0.9,0.9,0.9 - 0.05*maxNumShifts)
+            persistance["pad_col_{}_legend".format(col)] = TLegend(0.75,0.9,0.9,0.9 - 0.05*maxNumShifts)
 
             minFlux = None
             maxFlux = None
@@ -283,6 +285,9 @@ class PPSHitmap:
                 lineColor = baseColor + colorOffset*(nShift-1)
                 xArr, yArrMed, yArrUp, yArrDown = array( 'd' ), array( 'd' ), array( 'd' ), array( 'd' )
 
+                # The 0.01 is 10 mm in m, this is the maximum range of the plot
+                # Divide by the number of shifts to get the step size of each shift
+                # Divide by the step size of the fluence bins, to get the number if fluence bins in each shift
                 for shiftIdx in range(1,int(0.01/(nShift*self.yStep))):
                     shift = shiftIdx * self.yStep * nShift # Total shift
                     xArr.append(shift * 1000)
@@ -345,12 +350,12 @@ class PPSHitmap:
                     graphUp.Draw("l same")
                     graphDown.Draw("l same")
 
-                persistance["col_{}_graph_med_{}".format(col,nShift)]   = graphMed
-                persistance["col_{}_graph_up_{}".format(col,nShift)]   = graphUp
-                persistance["col_{}_graph_down_{}".format(col,nShift)] = graphDown
+                persistance["pad_col_{}_graph_med_{}".format(col,nShift)]   = graphMed
+                persistance["pad_col_{}_graph_up_{}".format(col,nShift)]   = graphUp
+                persistance["pad_col_{}_graph_down_{}".format(col,nShift)] = graphDown
 
-                persistance["col_{}_legend".format(col)].AddEntry(graphMed, "n = {}".format(nShift), "l")
-            persistance["col_{}_legend".format(col)].Draw("same")
+                persistance["pad_col_{}_legend".format(col)].AddEntry(graphMed, "n = {}".format(nShift), "l")
+            persistance["pad_col_{}_legend".format(col)].Draw("same")
 
             if thresholdFlux is not None and thresholdFlux > maxFlux:
                 maxFlux = thresholdFlux * 1.05
@@ -358,14 +363,14 @@ class PPSHitmap:
                 if maxFlux is not None:
                     maxFlux *= 1.1
                 else:
-                    maxFlux = 1e15
+                    maxFlux = 1e15  # This should not happen, maybe it is more adequate to raise an exception?
             if thresholdFlux is not None and thresholdFlux < minFlux:
                 minFlux = thresholdFlux * 0.95
             else:
                 if minFlux is not None:
                     minFlux *= 0.9
                 else:
-                    minFlux = 1e10
+                    minFlux = 1e10  # This should not happen, maybe it is more adequate to raise an exception?
 
             if maxFlux/minFlux < 10:
                 minFlux = maxFlux/10
@@ -373,14 +378,13 @@ class PPSHitmap:
             hist.SetMinimum(minFlux)
             hist.SetMaximum(maxFlux)
 
-
         return canv, persistance
 
     def squarePadPeakUniformScan(self, bins, minPad, maxPad, doLog = False):
         if bins <= 1:
-            return (None, None)
+            raise ValueError("You must set 2 or more bins for the bin integration")
         if doLog and minPad == 0:
-            return (None, None)
+            raise ValueError("You can not set the minimum to 0 when using a logarithm scale")
 
         from math import log
         padSize = []
@@ -401,9 +405,9 @@ class PPSHitmap:
 
     def squarePadIntegrateScan(self, bins, minPad, maxPad, doLog = False):
         if bins <= 1:
-            return (None, None)
+            raise ValueError("You must set 2 or more bins for the bin integration")
         if doLog and minPad == 0:
-            return (None, None)
+            raise ValueError("You can not set the minimum to 0 when using a logarithm scale")
 
         from math import log
         padSize = []
@@ -427,13 +431,11 @@ class PPSHitmap:
 
         from array import array
         (padSize, occupancy) = self.squarePadPeakUniformScan(bins, minPad, maxPad, doLog = doLog)
-        if padSize is None or occupancy is None:
-            return None
         for ibin in range(len(padSize)):
             padSize[ibin] = padSize[ibin] * padScale
 
         x, y = array( 'd' ), array( 'd' )
-        graph = None
+        graph = TGraph()
         for ibin in range(len(padSize)):
             x.append(padSize[ibin])
             if occupancy[ibin] is not None:
@@ -450,12 +452,10 @@ class PPSHitmap:
         from array import array
 
         (padSize, occupancy) = self.squarePadIntegrateScan(bins, minPad, maxPad, doLog = doLog)
-        if padSize is None or occupancy is None:
-            return None
         padSize = [pad*padScale for pad in padSize]
 
         x, y = array( 'd' ), array( 'd' )
-        graph = None
+        graph = TGraph()
         for ibin in range(len(padSize)):
             x.append(padSize[ibin])
             if occupancy[ibin] is not None:
