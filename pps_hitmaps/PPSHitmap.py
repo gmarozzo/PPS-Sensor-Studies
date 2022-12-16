@@ -17,7 +17,7 @@ class PPSHitmap:
                  yStep = 0.00005, # in m
                  betastar = 0.15,
                  verbose = False,
-                 minFlux = None
+                 addBackgroundFlux = None
                 ):
         self.filename = filename
         self.station = station
@@ -38,7 +38,7 @@ class PPSHitmap:
 
         self.verbose = verbose
 
-        self.minFlux = minFlux
+        self.addBackgroundFlux = addBackgroundFlux
 
         if self.physics and self.calib:
             raise Exception("File {} has both physics and calibration set to true".format(self.filename))
@@ -151,8 +151,8 @@ class PPSHitmap:
                     self.map[pLine[0]] = {}
 
                 self.map[pLine[0]][pLine[1]] = pLine[2]
-                if self.minFlux is not None:
-                    self.map[pLine[0]][pLine[1]] += self.minFlux
+                if self.addBackgroundFlux is not None:
+                    self.map[pLine[0]][pLine[1]] += self.addBackgroundFlux
 
     def _freeMap(self):
         if self.map is not None:
