@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-from Sensor import Sensor
-from SensorPad import SensorPad
+from .Sensor import Sensor
+from .SensorPad import SensorPad
 
-listOfSensors = [
-    "SimpleETLSensor",
-    "RealisticETLSensor",
-    "PPSHybrid1Sensor",
-]
 
 class SimpleETLSensor(Sensor):
     def __init__(self, shifts:list = []):
