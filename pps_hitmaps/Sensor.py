@@ -1,5 +1,8 @@
-from ClassFields import *
-from PPSHitmap import PPSHitmap
+from __future__ import annotations
+
+from .ClassFields import *
+from .PPSHitmap import PPSHitmap
+from .SensorPad import SensorPad
 
 def calcLossProb(deadtime, occupancy, bunchSpacing=25.):
     from math import exp, floor
@@ -13,6 +16,7 @@ class Sensor:
     maxX = FloatField()
     minY = FloatField()
     maxY = FloatField()
+    padVec : list[SensorPad]
 
     def __init__(self, shifts:list = []):
         self.shifts = shifts
@@ -63,6 +67,9 @@ class Sensor:
                         if self.padVec[idx].doses_extra[epoch]["occupancy"] > self.padVec[padIdx].doses_extra[epoch]["occupancy"]:
                             padIdx = idx
 
+            if padIdx is None:
+                raise RuntimeError("Unable to find pad with max occupancy for epoch {}".format(epoch))
+
             if usePadSpacing:
                 occupancy += [self.padVec[padIdx].doses[epoch]["occupancy"]]
             else:
@@ -88,7 +95,7 @@ class Sensor:
             padX = 3
             padY = ceil(numTPads/3.)
 
-        from ROOT import TCanvas, TH2D
+        from ROOT import TCanvas, TH2D  # type: ignore
         from array import array
 
         edgesX = []
@@ -181,7 +188,7 @@ class Sensor:
             padX = 3
             padY = ceil(numTPads/3.)
 
-        from ROOT import TCanvas, TH2D, TGraph
+        from ROOT import TCanvas, TH2D, TGraph  # type: ignore
         from array import array
 
         persistance = {}
