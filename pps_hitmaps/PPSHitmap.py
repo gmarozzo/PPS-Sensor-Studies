@@ -98,23 +98,6 @@ class PPSHitmap:
             print("Max fluence at x={}, y={}, fluence={}".format(self.maxFluence["x"], self.maxFluence["y"], self.maxFluence["fluence"]))
             print("Pad edge at x={}".format(edgeIdx * self.xStep + self.xMin))
 
-    #def ___validate_old(self):
-    #    seld._checkDF() if self.verbose:
-    #        print("From {} to {} every {}: Range of {} in {} steps (x-axis)".format(self.xMin, self.xMax,
-    #    self.xStep, self.xMax - self.xMin, ((self.xMax - self.xMin)/self.xStep))) print("From {} to {} every {}:
-    #    Range of {} in {} steps (y-axis)".format(self.yMin, self.yMax, self.yStep, self.yMax - self.yMin,
-    #    ((self.yMax - self.yMin)/self.yStep))) for xIdx in range(int((self.xMax - self.xMin)/self.xStep)):
-    #        xVal = round(self.xMin + xIdx*self.xStep, 6)
-
-    #        xRows = self.df.loc[self.df["xPos"] == xVal] for yIdx in range(int((self.yMax -
-    #        self.yMin)/self.yStep)):
-    #            yVal = round(self.yMin + yIdx*self.yStep, 6)
-
-    #            #if len(self.df.loc[(self.df["xPos"] == xVal) & (self.df["yPos"] == yVal)]) != 1:
-    #            if len(xRows.loc[xRows["yPos"] == yVal]) != 1:
-    #                raise Exception("Did not find a fluence entry for {} for x={}, y={}".format(self.filename,
-    #    xVal, yVal)) self.validated = True self._freeDF()
-
     def _checkValid(self):
         if not self.validated:
             print("The file {} has not yet been validated to contain all points, it will be validated now and may take some time, if the file has been previously validated, you can remove this check by setting the validated property to True".format(self.filename))
@@ -122,19 +105,6 @@ class PPSHitmap:
 
             if not self.validated:
                 raise Exception("There was a problem validatind the file {}".format(self.filename))
-
-    #def _checkDF(self):
-    #    if self.df is None:
-    #        self._loadDF()
-
-    #def _loadDF(self):
-    #    self.df = pd.read_csv(self.filename, delim_whitespace=True, names=['xPos', 'yPos', 'fluence']) if
-    #    self.verbose:
-    #        self.df.info() print()
-
-    #def _freeDF(self):
-    #    if self.df is not None:
-    #        self.df = None
 
     def _checkMap(self):
         if self.map is None:
