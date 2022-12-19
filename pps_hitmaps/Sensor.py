@@ -43,8 +43,9 @@ class Sensor:
 
         hitmap._checkMap()
 
-        for pad in self.padVec:
-            pad.calculateFlux(self.shifts, hitmap) # Remember PPSHitmap is in m, sensor is in mm
+        for i in range(len(self.padVec)):
+            if i<16 or i>239:
+                self.padVec[i].calculateFlux(self.shifts, hitmap) # Remember PPSHitmap is in m, sensor is in mm
 
         self.hasFlux = True
 
@@ -284,3 +285,18 @@ class Sensor:
                     maxDose = padDose
 
         return maxDose
+    
+    def getVoltageEOL(self, chargeFunc, usePadSpacing=True, integratedLuminosity=300, numberofPads=16):
+        totalmin=0
+        totalmax=99999
+        for i in range(0,numberofPads):
+            minV, maxV = self.padVec[i].getVoltageEOL(chargeFunc, integratedLuminosity)
+            if minV>totalmin:
+                totalmin=minV
+            if maxV<totalmax:
+                totalmax=maxV
+        for i in range(240,256):
+            minV, maxV = self.padVec[i].getVoltageEOL(chargeFunc, integratedLuminosity)
+            if maxV<totalmax:
+                totalmax=maxV
+        return (totalmin,totalmax)
