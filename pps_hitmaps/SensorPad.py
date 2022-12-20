@@ -215,6 +215,181 @@ class SensorPad:
                 'occupancy': flux_extra * 1.6E-12 * occupancyNorm,
                 'fluxMap': fluxMap_extra,
                 }]
+            
+    def calculatepartialFlux(self, shifts, integratedLuminosity, hitmap): # Remember PPSHitmap is in m, sensor is in mm
+        #if len(shifts) != self.epochs:
+        #    raise ValueError(f'Expected the number of shift positions to match the number of epochs')
+            
+        relevantShifts = float(len(shifts))*float(integratedLuminosity)/300.0 
+        intpart,floatpart = divmod(relevantShifts,1)
+        isfractionary = floatpart>0.0001
+        cutshifts = []
+        if isfractionary:
+            cutshifts = shifts[:int(intpart)+1]
+        else:
+            cutshifts = shifts[:int(intpart)]
+            floatpart = 1
+
+        self.doses = []
+        self.doses_extra = []
+
+        for epoch in range(len(cutshifts)):
+            minX = self.minX + shifts[epoch][0]
+            maxX = self.maxX + shifts[epoch][0]
+            minY = self.minY + shifts[epoch][1]
+            maxY = self.maxY + shifts[epoch][1]
+
+            centerPadX = (minX + maxX)/2
+            centerPadY = (minY + maxY)/2
+
+            minX_extra = self.minX_extra + shifts[epoch][0]
+            maxX_extra = self.maxX_extra + shifts[epoch][0]
+            minY_extra = self.minY_extra + shifts[epoch][1]
+            maxY_extra = self.maxY_extra + shifts[epoch][1]
+
+            centerPadX_extra = (minX_extra + maxX_extra)/2
+            centerPadY_extra = (minY_extra + maxY_extra)/2
+
+            flux = 0
+            flux_extra = 0
+            maxFlux = None
+            maxFlux_extra = None
+            fluxMap = []
+            fluxMap_extra = []
+
+            for x in hitmap.map:
+                xVal = x*1000
+                left = xVal - hitmap.xStep*1000/2
+                right = xVal + hitmap.xStep*1000/2
+
+                inSensitiveArea = True
+                inSensitiveArea_extra = True
+
+                if ((left < minX and right < minX) or
+                    (left > maxX and right > maxX)):
+                    inSensitiveArea = False
+
+                if ((left < minX_extra and right < minX_extra) or
+                    (left > maxX_extra and right > maxX_extra)):
+                    inSensitiveArea_extra = False
+
+                contributionX = 0
+                if inSensitiveArea:
+                    contributionX = 1
+                    if right > maxX:
+                        contributionX -= (right - maxX)/(hitmap.xStep*1000)
+                    if left < minX:
+                        contributionX -= (minX - left)/(hitmap.xStep*1000)
+
+                contributionX_extra = 0
+                if inSensitiveArea_extra:
+                    contributionX_extra = 1
+                    if right > maxX_extra:
+                        contributionX_extra -= (right - maxX_extra)/(hitmap.xStep*1000)
+                    if left < minX_extra:
+                        contributionX_extra -= (minX_extra - left)/(hitmap.xStep*1000)
+
+                if not (inSensitiveArea or inSensitiveArea_extra):
+                    continue
+
+                for y in hitmap.map[x]:
+                    yVal = y*1000
+                    bottom = yVal - hitmap.yStep*1000/2
+                    top = yVal + hitmap.yStep*1000/2
+
+                    inSensitiveAreaY = True
+                    inSensitiveAreaY_extra = True
+
+                    if ((bottom < minY and top < minY) or
+                        (bottom > maxY and top > maxY)):
+                        inSensitiveAreaY = False
+
+                    if ((bottom < minY_extra and top < minY_extra) or
+                        (bottom > maxY_extra and top > maxY_extra)):
+                        inSensitiveAreaY_extra = False
+
+                    if inSensitiveArea and inSensitiveAreaY:
+                        contributionY = 1
+                        if top > maxY:
+                            contributionY -= (top - maxY)/(hitmap.yStep*1000)
+                        if bottom < minY:
+                            contributionY -= (minY - bottom)/(hitmap.yStep*1000)
+
+                        if epoch==len(cutshifts)-1:
+                            flux += hitmap.map[x][y] * contributionX * contributionY * floatpart
+                        else:
+                            flux += hitmap.map[x][y] * contributionX * contributionY
+
+                        if maxFlux is None or hitmap.map[x][y] > maxFlux:
+                            maxFlux = hitmap.map[x][y]
+                            
+                        if epoch==len(cutshifts)-1:
+                            fluxMap += [{
+                                'flux': hitmap.map[x][y]*floatpart,
+                                'x': xVal,
+                                'y': yVal,
+                                'xLocal': xVal - centerPadX,
+                                'yLocal': yVal - centerPadY,
+                                'leftLocal': left - centerPadX,
+                                'rightLocal': right - centerPadX,
+                                'topLocal': top - centerPadY,
+                                'bottomLocal': bottom - centerPadY,
+                            }]
+                        else:
+                            fluxMap += [{
+                                'flux': hitmap.map[x][y],
+                                'x': xVal,
+                                'y': yVal,
+                                'xLocal': xVal - centerPadX,
+                                'yLocal': yVal - centerPadY,
+                                'leftLocal': left - centerPadX,
+                                'rightLocal': right - centerPadX,
+                                'topLocal': top - centerPadY,
+                                'bottomLocal': bottom - centerPadY,
+                            }]
+                            
+
+                    if inSensitiveArea_extra and inSensitiveAreaY_extra:
+                        contributionY_extra = 1
+                        if top > maxY_extra:
+                            contributionY_extra -= (top - maxY_extra)/(hitmap.yStep*1000)
+                        if bottom < minY_extra:
+                            contributionY_extra -= (minY_extra - bottom)/(hitmap.yStep*1000)
+
+                        flux_extra += hitmap.map[x][y] * contributionX_extra * contributionY_extra
+
+                        if maxFlux_extra is None or hitmap.map[x][y] > maxFlux_extra:
+                            maxFlux_extra = hitmap.map[x][y]
+
+                        fluxMap_extra += [{
+                            'flux': hitmap.map[x][y],
+                            'x': xVal,
+                            'y': yVal,
+                            'xLocal': xVal - centerPadX_extra,
+                            'yLocal': yVal - centerPadY_extra,
+                            'leftLocal': left - centerPadX_extra,
+                            'rightLocal': right - centerPadX_extra,
+                            'topLocal': top - centerPadY_extra,
+                            'bottomLocal': bottom - centerPadY_extra,
+                        }]
+
+            occupancyNorm = (hitmap.xStep *
+                             hitmap.yStep * 1.0E4) # in cm^2
+
+            self.doses += [{
+                'totalFlux': flux,
+                'maxFlux': maxFlux,
+                'occupancyNorm': occupancyNorm,
+                'occupancy': flux * 1.6E-12 * occupancyNorm,
+                'fluxMap': fluxMap,
+                }]
+            self.doses_extra += [{
+                'totalFlux': flux_extra,
+                'maxFlux': maxFlux_extra,
+                'occupancyNorm': occupancyNorm,
+                'occupancy': flux_extra * 1.6E-12 * occupancyNorm,
+                'fluxMap': fluxMap_extra,
+                }]
 
     def plotFlux(self, usePadSpacing = True, printEpoch = None):
         from math import ceil

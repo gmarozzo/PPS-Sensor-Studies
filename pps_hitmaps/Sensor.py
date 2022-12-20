@@ -44,8 +44,20 @@ class Sensor:
         hitmap._checkMap()
 
         for i in range(len(self.padVec)):
-            if i<16 or i>239:
+            if i<64 or i>239:
                 self.padVec[i].calculateFlux(self.shifts, hitmap) # Remember PPSHitmap is in m, sensor is in mm
+
+        self.hasFlux = True
+        
+    def calculatepartialFlux(self, integratedLuminosity, hitmap:PPSHitmap):
+        if not isinstance(hitmap, PPSHitmap):
+            raise ValueError(f'expecting PPSHitmap to calculate the dose')
+
+        hitmap._checkMap()
+
+        for i in range(len(self.padVec)):
+            if i<64 or i>239:
+                self.padVec[i].calculatepartialFlux(self.shifts, integratedLuminosity, hitmap) # Remember PPSHitmap is in m, sensor is in mm
 
         self.hasFlux = True
 
